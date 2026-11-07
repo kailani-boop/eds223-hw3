@@ -1,0 +1,30 @@
+---
+title: "EDS 223 HW 1"
+author: "Kailani Latimer"
+date: last-modified
+format: 
+  pdf:
+    toc: true
+editor_options: 
+  chunk_output_type: console
+execute: 
+  warning: false
+  message: false
+---
+
+## Introduction
+
+
+
+
+
+```{r}
+# LOADING PACKAGES
+library(tidyverse)
+library(sf)
+library(here)
+library(tmap)
+library(tinytex)
+library(tidyterra)
+library(maptiles)
+```
