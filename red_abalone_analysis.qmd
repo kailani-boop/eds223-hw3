@@ -1,0 +1,198 @@
+---
+title: "EDS 223 HW 1"
+author: "Kailani Latimer"
+date: last-modified
+format: 
+  pdf:
+    toc: true
+editor_options: 
+  chunk_output_type: console
+execute: 
+  warning: false
+  message: false
+---
+
+## Introduction
+
+
+
+## Prepare Data
+
+I need to load the necessary packages and data to get started. The data I'm working with consists of NOAA’s 5km Daily Global Satellite Sea Surface Temperature Anomaly v3.1 (SST), SeaLifeBase information on oysters and red abalone, the General Bathymetric Chart of the Oceans (GEBCO), and designating maritime boundaries using Exclusive Economic Zones (EEZ) off of the west coast of US from Marineregions.org. Here, I also filtered the SST raster to be between 2008 and 2012. 
+
+```{r}
+# LOADING PACKAGES
+library(tidyverse)
+library(sf)
+library(here)
+library(tmap)
+library(tinytex)
+library(tidyterra)
+library(maptiles)
+library(terra)
+```
+
+```{r}
+# READING IN THE DATA
+# Read in the West Coast EEZ boundaries
+eez <- st_read(here("data", "wc_regions_clean.shp"), quiet = TRUE)
+
+# Read in the bathymetry raster
+depth <- rast(here("data", "depth.tif"))
+
+# Read in and stack the SST rasters (2008–2012)
+sst_files <- list.files(here("data"), pattern = "average_annual_sst", full.names = TRUE)
+sst <- rast(sst_files)
+names(sst) <- paste0("sst_", 2008:2012)
+
+# Check that all 5 years loaded
+if (nlyr(sst) != 5) {
+  stop("Expected 5 SST layers (2008–2012), but found ", nlyr(sst))
+}
+```
+
+After reading in the data, I need to check if the coordinate reference system's (CRS) match. If they don't I need to transform them so that they do match. 
+
+```{r}
+# Look at the CRS of each dataset
+crs(sst, describe = TRUE)
+crs(depth, describe = TRUE)
+st_crs(eez)$input
+# They all use WGS 84
+
+# Reproject depth to match SST if needed
+if (!same.crs(depth, sst)) {
+  warning("Depth CRS does not match SST. Reprojecting depth to match SST.")
+  depth <- project(depth, crs(sst))
+} # No warning was printed
+
+# Transform EEZ to match SST if needed
+if (!same.crs(sst, st_crs(eez)$wkt)) {
+  warning("EEZ CRS does not match SST. Transforming EEZ to match SST.")
+  eez <- st_transform(eez, crs = crs(sst))
+} # No warning was printed
+
+# Confirm everything matches before moving on
+if (same.crs(depth, sst) & same.crs(sst, st_crs(eez)$wkt)) {
+  print("All datasets share the same CRS.")
+} else {
+  stop("CRS mismatch remains between datasets.")
+}
+# All the datasets share the same CRS
+```
+
+All of the datasets share the same CRS, so there was no need to transform any of them. I placed warnings in the code that would run if the CRS' didn't match. 
+
+
+## 1. Process Data
+
+First, I average the five SST layers into one layer to simplify things. It creates a single raster of average SST. 
+
+```{r}
+# 1a. Average the 5 SST layers into one layer
+sst_mean <- mean(sst, na.rm = TRUE)
+sst_mean
+```
+
+Then, I convert average SST from Kelvin to Celsius so that it's more relevant. I also ran a summary of the raster to look at the minimum, median, maximum, and number of NA's. 
+
+```{r}
+# 1b. Convert Kelvin to Celsius 
+sst_mean_c <- sst_mean - 273.15
+sst_mean_c
+```
+
+```{r}
+# The summary function takes a sample of the raster
+summary(sst_mean_c)
+```
+
+Here, the minimum value is around 7ºC, median is 14ºC, maximum is almost 33ºC, and there are 41,907 NA values. 
+
+```{r}
+# The global function provides the real min, max, and mean of the raster
+global(sst_mean_c, fun = c("min", "max", "mean"), na.rm = TRUE)
+```
+
+Using the `global` function, the minimum comes out to be around 5ºC, the maximum is still almost 33ºC, and the mean is a little more than 14ºC. 
+
+After converting to Celsius and looking at the sumamry statistics, I crop the depth raster to match the extent of the SST raster. 
+
+```{r}
+# 1c. Crop depth to the SST extent
+depth_crop <- crop(depth, sst_mean_c)
+```
+
+Now, the resolutions of the SST and depth data do not match. So, I have to resample the depth data to match the resolution of the SST data using the bilinear method approach. 
+
+```{r}
+# 1d. Resample depth to the SST resolution
+depth_resamp <- project(depth_crop, sst_mean_c, method = 'bilinear')
+```
+
+I check each version of the `depth` raster to make sure the changes I've been making have been working. `depth_resamp` should match the resolution and extent of `sst_mean_c` to continue with the analysis. 
+
+```{r}
+# 1e. Check that they line up
+# Printing each raster to check the resolution, extent, and CRS
+print(depth)
+print(depth_crop)
+print(depth_resamp)
+print(sst_mean_c)
+```
+
+The resolution and extent match. Now, I plot the most recent version of the `depth` raster to make sure that everything is looking normal so far. 
+
+```{r}
+# Plotting depth_resamp
+plot(depth_resamp)
+```
+
+Everything looks good, so now I will double check that everything matches with `compareGeom()`.
+
+```{r}
+# Check that the extent, resolution, and CRS match
+compareGeom(depth_resamp, sst_mean_c)
+```
+
+
+Now that the data has been processed and everything matches, I can move further into the analysis. To find suitable locations for marine aquaculture, I'll need to find locations that are suitable in terms of both SST and depth.
+
+
+## 2. Find Suitable Locations
+
+```{r}
+# 2a. Reclassify SST into suitable/unsuitable         → look up: classify() with a reclassification matrix
+# 2b. Reclassify depth the same way
+# 2c. Combine them so only cells meeting BOTH are kept → look up: lapp(), or just multiply the two rasters
+```
+
+## Determine the Most Suitable EEZ
+
+```{r}
+# 3a. Keep only suitable cells inside the EEZs        → look up: mask()
+# 3b. Get the area of each cell                       → look up: cellSize(), unit = "km"
+# 3c. Turn the EEZ polygons into a raster             → look up: rasterize(), field = the region column
+# 3d. Add up suitable area in each region             → look up: zonal(), fun = "sum"
+# 3e. Join the results back to the EEZ sf object      → look up: left_join()
+```
+
+
+## Map It
+
+```{r}
+# tmap: tm_shape(eez) + tm_polygons(fill = suitable area column) + title, legend with units (km²)
+# Rubric extras: tm_scalebar(), tm_compass() or tm_graticules(), and a colorblind-friendly palette
+```
+
+
+## Turn it into a Function
+
+```{r}
+suitability_map <- function(min_sst, max_sst, min_depth, max_depth, species_name) {
+  # steps 2 → 4 go here, using the arguments in place of hard-coded numbers
+  # species_name goes in the map title
+}
+```
+
+## Conclusion

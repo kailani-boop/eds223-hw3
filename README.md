@@ -1,28 +1,31 @@
-# EDS 223 HW 2: Exploring Patterns of Environmental Justice in LA County
+# EDS 223 HW 3: Prioritizing Potential Aquaculture
 
 ## Purpose
-This repo contains the second homework assignment for EDS 223, Geospatial Analysis and Remote Sensing. The course introduces the spatial modeling and analytic techniques of geographic information science to data science students, with an emphasis on spatial data models and the analytic operations they enable.
+This repo contains the third homework assignment for EDS 223, Geospatial Analysis and Remote Sensing. The course introduces the spatial modeling and analytic techniques of geographic information science to data science students, with an emphasis on spatial data models and the analytic operations they enable.
 
-This assignment explores the legacy of historical redlining in Los Angeles County. Part 1 examines how Home Owners' Loan Corporation (HOLC) grades from the 1930s relate to present-day environmental and socioeconomic conditions (PM2.5, low life expectancy, and low income). Part 2 examines how HOLC grades relate to bike and pedestrian crashes and fatalities from 2020–2025.
+Marine aquaculture has the potential to play an important role in the global food supply as a more sustainable protein option than land-based meat production. The potential for marine aquaculture globally was based on multiple constraints, including ship traffic, dissolved oxygen, and bottom depth. It was found that global seafood demand could be met using less than 0.015% of the global ocean area. For this assignment, I'm tasked with determining which Exclusive Economic Zones (EEZ) on the West Coast of the US are best suited to developing marine aquaculture for several species of oysters and red abalone. Suitable locations will be determined based on range of suitable sea surface temperature (SST) and depth values for the species. 
 
 ## Repository Organization
 ```
-eds223-hw2
-│   README.md           # Overview of the repository
-│   HW2.qmd             # Quarto document with analysis
-│   Rmd/Proj files
-│
+EDS223-HW3
+└─── README.md                    # Overview of the repository
+└─── qmd/Rmd/Proj files
+└─── red_abalone_analysis.qmd     # Quarto document with analysis
 └───.gitignore
-     └───data
-         └───ejscreen
-         └───SWITRS_LA
-         └───mapping-inequality
+    └───data
+        └─── wc_regions_clean.shp
+        └─── depth.tif
+        └─── average_annual_sst_2008.tif
+        └─── average_annual_sst_2009.tif
+        └─── average_annual_sst_2010.tif
+        └─── average_annual_sst_2011.tif
+        └─── average_annual_sst_2012.tif
 ```
 
 ## Data Access
-Because the files are too large for GitHub, the `data/` folder is listed in `.gitignore`. To run the analysis, download the data from [this Google Drive link](https://drive.google.com/file/d/1nG6Nj1bXfzQFOVMO8Km3eNy4SWu1YcIQ/view?usp=sharing), unzip it, and place the files in a `data/` folder at the root of this repository.
+Because the files are too large for GitHub, the `data/` folder is listed in `.gitignore`. To run the analysis, download the data from [this Google Drive link](https://drive.google.com/file/d/1u-iwnPDbe6ZK7wSFVMI-PpCKaRQ3RVmg/view), unzip it, and place the files in a `data/` folder at the root of this repository.
 
-The data includes:
+The data includes: *****
 - **EJScreen** (`data/ejscreen/`): U.S. EPA environmental and demographic data at the census block group level (2023, Version 2.2).
 - **HOLC redlining maps** (`data/mapping-inequality/`): Digitized HOLC grade boundaries for Los Angeles from the Mapping Inequality project.
 - **Bike and pedestrian crashes** (`data/SWITRS_LA/`): Collision reports from 2020–2025 from the Statewide Integrated Traffic Records System (SWITRS), accessed through the Transportation Injury Mapping System (TIMS).
@@ -30,8 +33,8 @@ The data includes:
 ## Author
 Kailani Latimer ([GitHub](https://github.com/kailani-boop))
 
-## References
-- EDS 223 Homework 2 instructions: [https://eds-223-geospatial.github.io/assignments/HW2V2.html](https://eds-223-geospatial.github.io/assignments/HW2V2.html)
+## References ****
+- EDS 223 Homework 3 instructions: [EDS 223 HW 3](https://eds-223-geospatial.github.io/assignments/HW3.html)
 - U.S. Environmental Protection Agency. (2023). *EJScreen: Environmental Justice Screening and Mapping Tool* (Version 2.2). [https://pedp-ejscreen.azurewebsites.net/](https://pedp-ejscreen.azurewebsites.net/)
 - U.S. Environmental Protection Agency. (2023). *EJScreen Technical Documentation, Version 2.2.*
 - Nelson, R. K., Winling, L., Marciano, R., Connolly, N., et al. "Mapping Inequality." *American Panorama*, ed. R. K. Nelson and E. L. Ayers. [https://dsl.richmond.edu/panorama/redlining/](https://dsl.richmond.edu/panorama/redlining/)
