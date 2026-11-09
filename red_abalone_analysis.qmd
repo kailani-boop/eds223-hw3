@@ -14,7 +14,7 @@ execute:
 
 ## Introduction
 
-Marine aquaculture has the potential to be an important source of protein, with lower environmental costs than many land-based meat production systems (Hall et al., 2011). Gentry et al. (2017) mapped the global potential for marine aquaculture and found that current global seafood demand could be met using only a small fraction of suitable ocean area. In this analysis, I identify which Exclusive Economic Zones (EEZs) on the U.S. West Coast are best suited for aquaculture based on each species' sea surface temperature and depth requirements. I first develop the workflow for oysters, then turn it into a reusable function and apply it to red abalone. 
+Marine aquaculture has the potential to be an important source of protein, with lower environmental costs than many land-based meat production systems (Hall et al., 2011). Gentry et al. (2017) mapped the global potential for marine aquaculture and found that current global seafood demand could be met using only a small fraction of suitable ocean area. In this analysis, I identify which Exclusive Economic Zones (EEZs) on the U.S. West Coast are best suited for aquaculture based on each species' sea surface temperature and depth requirements. I first develop the workflow for oysters, then turn it into a reusable function and apply it to red abalone. I chose red abalone because a few of my friends work at the abalone farm in the Goleta/Gaviota area. They've explained to me how different foods cause the different colors in the shell. So, they're relevant to my personal life, but also the greater Santa Barbara and Channel Islands area. 
 
 
 ## Prepare Data
