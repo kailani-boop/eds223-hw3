@@ -1,5 +1,5 @@
 ---
-title: "EDS 223 HW 1"
+title: "EDS 223 HW 3: Red Abalone Analysis"
 author: "Kailani Latimer"
 date: last-modified
 format: 
@@ -14,6 +14,7 @@ execute:
 
 ## Introduction
 
+Marine aquaculture has the potential to be an important source of protein, with lower environmental costs than many land-based meat production systems (Hall et al., 2011). Gentry et al. (2017) mapped the global potential for marine aquaculture and found that current global seafood demand could be met using only a small fraction of suitable ocean area. In this analysis, I identify which Exclusive Economic Zones (EEZs) on the U.S. West Coast are best suited for aquaculture based on each species' sea surface temperature and depth requirements. I first develop the workflow for oysters, then turn it into a reusable function and apply it to red abalone. 
 
 
 ## Prepare Data
@@ -141,14 +142,7 @@ print(depth_resamp)
 print(sst_mean_c)
 ```
 
-The resolution and extent match. Now, I plot the most recent version of the `depth` raster to make sure that everything is looking normal so far. 
-
-```{r}
-# Plotting depth_resamp
-plot(depth_resamp)
-```
-
-Everything looks good, so now I will double check that everything matches with `compareGeom()`.
+The resolution and extent match, so now I will double check that everything matches with `compareGeom()`.
 
 ```{r}
 # Check that the extent, resolution, and CRS match
@@ -156,43 +150,244 @@ compareGeom(depth_resamp, sst_mean_c)
 ```
 
 
-Now that the data has been processed and everything matches, I can move further into the analysis. To find suitable locations for marine aquaculture, I'll need to find locations that are suitable in terms of both SST and depth.
-
-
 ## 2. Find Suitable Locations
 
+Now that the data has been processed and everything matches, I can move further into the analysis. To find suitable locations for marine aquaculture, I'll need to find locations that are suitable in terms of both SST and depth.
+
+I need to reclassify SST and depth data into locations that are suitable for oysters. To do this, I set suitable values to `1` and unsuitable values to `NA`. 
+
 ```{r}
-# 2a. Reclassify SST into suitable/unsuitable         → look up: classify() with a reclassification matrix
-# 2b. Reclassify depth the same way
-# 2c. Combine them so only cells meeting BOTH are kept → look up: lapp(), or just multiply the two rasters
+# 2a. Oyster SST range: 11–30°C
+rcl_sst <- matrix(c(-Inf,  11, NA,   # colder than 11°C → not suitable
+                       11, 30,  1,   # 11–30°C → suitable
+                      30, Inf, NA),  # warmer than 30°C → not suitable
+                  ncol = 3, byrow = TRUE)
+
+sst_suit <- classify(sst_mean_c, rcl_sst, include.lowest = TRUE)
 ```
+
+This area includes the entire ocean surrounding the West Coast because it's data on sea surface temperature that happens to be in the range needed for oyster development. 
+
+```{r}
+# Oyster depth range: 0-70 m
+rcl_depth <- matrix(c(-Inf, -70, NA,   # deeper than 70 m → not suitable
+                       -70, 0,  1,     # 0 to 70 m deep → suitable
+                       0, Inf, NA),    # above sea level (land) → not suitable
+                    ncol = 3, byrow = TRUE)
+
+depth_suit <- classify(depth_resamp, rcl_depth, include.lowest = TRUE)
+```
+
+This area includes the depth ranges that are suitable for oysters. It shows up on a map as a thin line because the depth range only exists closer to shore. 
+
+The next step is to combine the two rasters so that both the correct SST and depth are in one place. 
+
+```{r}
+# 2b. Combine them so only cells meeting BOTH are kept
+suitable <- lapp(c(sst_suit, depth_suit), fun = function(x, y) {x * y})
+```
+
+This area includes the regions of the West Coast that are suitable for oyster growth and development. The minimal area along the coast from `rcl_depth` became even smaller when the SST and depth were combined together. There's only a few locations that are suitable for oysters. 
+
 
 ## Determine the Most Suitable EEZ
 
+I want to determine the total suitable area within each Exclusive Economic Zone in order to rank zones by priority. To do so, I need to find the total area of suitable locations within each EEZ. 
+
+The first step is to select suitable cells within West Coast EEZs. Before I can do that, I have to turn the EEZ polygons into a raster. 
+
 ```{r}
-# 3a. Keep only suitable cells inside the EEZs        → look up: mask()
-# 3b. Get the area of each cell                       → look up: cellSize(), unit = "km"
-# 3c. Turn the EEZ polygons into a raster             → look up: rasterize(), field = the region column
-# 3d. Add up suitable area in each region             → look up: zonal(), fun = "sum"
-# 3e. Join the results back to the EEZ sf object      → look up: left_join()
+eez_rast <- rasterize(eez, suitable, field = 'rgn')
+plot(eez_rast, main = "West Coast EEZs",
+     xlab = "Longitude", ylab = "Latitude", legend = FALSE)
 ```
+
+The plot shows the West Coast ocean split up into five colored regions. The regions include Washington, Oregon, and Northern, Central, and Southern California. 
+
+Now, I can keep only the suitable cells within the EEZs.
+
+```{r}
+# 3a. Keep only suitable cells inside the EEZs
+suitable_eez <- mask(suitable, eez_rast)
+plot(suitable_eez, main = "Suitable cells for oysters within West Coast EEZs",
+     xlab = "Longitude", ylab = "Latitude", legend = FALSE, col = "darkgreen")
+```
+
+This plot shows a dark green, thin line around the coast that consist of the suitable areas for oysters both regarding sea surface temperature and depth. The area only includes the three states on the West Coast of the lower 48 states. The area is a thin line because the depth is shallower by the coast than in the open ocean. 
+
+The next step is to find the area of each grid cell. 
+
+```{r}
+# 3b. Get the area of each cell
+suitable_area <- suitable_eez * cellSize(suitable_eez, unit = 'km')
+suitable_area
+```
+
+Now that each cell's area has been found, I can find the total suitable area within each EEZ. 
+
+```{r}
+# 3c. Add up suitable area in each region
+area_by_eez <- zonal(suitable_area, eez_rast, fun = 'sum', na.rm = TRUE)
+
+# Rename the column name that zonal() automatically makes
+area_by_eez <- area_by_eez |> 
+  rename(suitable_area_km2 = lyr1)
+```
+
+The region with the largest total suitable area is Central CA at about 4,373 km², then Southern CA (3,329 km²), Washington (3,091 km²), Oregon (1,395 km²), and lastly, Northern CA (323 km²). When looking at just states, it's clear that California has the most suitable area for oysters. 
+
+To keep track of the suitable area total, I join the results back to the EEZ data frame on the `rgn` column. 
+
+```{r}
+# Join the results back to the EEZ sf object
+eez_suitable <- left_join(eez, area_by_eez, by = 'rgn')
+```
+
 
 
 ## Map It
 
+The data wrangling and cleaning is done, so now I can map the final product. 
+
 ```{r}
-# tmap: tm_shape(eez) + tm_polygons(fill = suitable area column) + title, legend with units (km²)
-# Rubric extras: tm_scalebar(), tm_compass() or tm_graticules(), and a colorblind-friendly palette
+#| fig-width: 7
+#| fig-height: 9
+
+tm_shape(eez_suitable) +
+  tm_polygons(fill = "suitable_area_km2",
+              fill.scale = tm_scale_continuous(values = "brewer.blues", 
+                                              values.range = c(0.25, 1)),
+              fill.legend = tm_legend(title = "Suitable area (sq. km)",
+                                      title.size = 0.7,
+                                      text.size = 0.6,
+                                      reverse = TRUE),
+              col = "white", 
+              lwd = 0.5) +
+  tm_text("rgn", size = 0.55, col = "white") + 
+  tm_title("Suitable Area for Oyster\nAquaculture by West Coast EEZ", size = 0.9) +
+  tm_graticules(col = "gray90", lwd = 0.5) +
+  tm_compass(position = c("left", "bottom"), size = 1.5) +
+  tm_scalebar(breaks = c(0, 100, 200, 300, 400), text.size = 0.6, 
+              position = c("left", "bottom"))
 ```
+
+The map above represents the suitable area in km for oyster aquaculture grouped by West Coast EEZs. The darker the color, the more suitable area. Vice versa for the lighter blue. Each EEZ is labelled with its respective region. You can clearly see which regions have more or less suitable area for aquaculture. 
 
 
 ## Turn it into a Function
 
+To do these same steps for a different species involved in aquaculture, a function can be made. This allows for a quicker, reproducible workflow that can be applied to any species. 
+
 ```{r}
+#| fig-width: 7
+#| fig-height: 9
+
 suitability_map <- function(min_sst, max_sst, min_depth, max_depth, species_name) {
-  # steps 2 → 4 go here, using the arguments in place of hard-coded numbers
-  # species_name goes in the map title
+
+  # ---- Check the inputs ----
+  if (min_sst >= max_sst) stop("min_sst must be less than max_sst.")
+  if (min_depth >= max_depth) stop("min_depth must be less than max_depth.")
+  if (min_depth < 0 | max_depth < 0) {
+    stop("Enter depths as positive meters below sea level (e.g., 0 and 70).")
+  }
+
+  # ---- Step 2: find suitable cells ----
+  # Reclassify SST: 1 = suitable, NA = not suitable
+  rcl_sst <- matrix(c(-Inf, min_sst, NA,
+                      min_sst, max_sst, 1,
+                      max_sst, Inf, NA),
+                    ncol = 3, byrow = TRUE)
+  sst_suit <- classify(sst_mean_c, rcl_sst, include.lowest = TRUE)
+
+  # Reclassify depth. GEBCO depths are negative, so flip the signs
+  rcl_depth <- matrix(c(-Inf, -max_depth, NA,
+                        -max_depth, -min_depth, 1,
+                        -min_depth, Inf, NA),
+                      ncol = 3, byrow = TRUE)
+  depth_suit <- classify(depth_resamp, rcl_depth, include.lowest = TRUE)
+
+  # Keep only cells suitable for both SST and depth
+  suitable <- lapp(c(sst_suit, depth_suit), fun = function(x, y) {x * y})
+
+  # ---- Step 3: suitable area per EEZ ----
+  eez_rast <- rasterize(eez, suitable, field = "rgn")
+  suitable_eez <- mask(suitable, eez_rast)
+  suitable_area <- suitable_eez * cellSize(suitable_eez, unit = "km")
+
+  area_by_eez <- zonal(suitable_area, eez_rast, fun = "sum", na.rm = TRUE) |> 
+    rename(suitable_area_km2 = lyr1)
+
+  eez_suitable <- left_join(eez, area_by_eez, by = "rgn")
+
+  # Sanity check: suitable area can't be bigger than the region itself
+  if (any(eez_suitable$suitable_area_km2 > eez_suitable$area_km2, na.rm = TRUE)) {
+    stop("Suitable area exceeds total EEZ area. Check the calculation.")
+  }
+
+  # ---- Step 4: map ----
+  tm_shape(eez_suitable) +
+    tm_polygons(fill = "suitable_area_km2",
+                fill.scale = tm_scale_continuous(values = "brewer.blues",
+                                                 values.range = c(0.25, 1)),
+                fill.legend = tm_legend(title = "Suitable area (sq. km)",
+                                        title.size = 0.7,
+                                        text.size = 0.6,
+                                        reverse = TRUE),
+                col = "white",
+                lwd = 0.5) +
+    tm_text("rgn", size = 0.55, col = "white") +
+    tm_title(paste0("Suitable Area for ", species_name,
+                    "\nAquaculture by West Coast EEZ"),
+             size = 0.9) +
+    tm_graticules(col = "gray80", lwd = 0.5) +
+    tm_compass(position = c("left", "bottom"), size = 1.5) +
+    tm_scalebar(breaks = c(0, 100, 200, 300, 400), text.size = 0.6,
+                position = c("left", "bottom"))
 }
 ```
 
+To check if the function works, I will try it with the oysters information. Then, I can check it with my work from earlier. 
+
+```{r}
+# Oysters: 11–30°C, 0–70 m
+suitability_map(min_sst = 11, max_sst = 30,
+                min_depth = 0, max_depth = 70,
+                species_name = "Oysters")
+```
+
+The oyster map is the same as the one I made from before, so the function works as intended. Now, I can use it on the aquaculture species of my choosing, red abalone. 
+
+```{r}
+# Red abalone: 8–18°C, 0–24 m (SeaLifeBase)
+suitability_map(min_sst = 8, max_sst = 18,
+                min_depth = 0, max_depth = 24,
+                species_name = "Red Abalone")
+```
+
+The red abalone map is a lot lighter than the oysters map. The lighter colors means that red abalone has less suitable area. They require cooler water and have a smaller depth range that they can be grown in. Harsher requirements means that there's going to be less suitable area. Washington has a lot of suitable area since it's dark blue. The other EEZs are on the lighter side of blue, but the next EEZ that has suitable area is Central CA, then Oregon, then Southern CA, and finally Northern CA. 
+
+
 ## Conclusion
+
+This analysis built a reproducible workflow to identify which West Coast EEZs have the most suitable area for marine aquaculture based on sea surface temperature and depth. For oysters (11–30°C, 0–70 m), Central California had the most suitable area (about 4,373 km²), followed by Southern California (3,329 km²), Washington (3,091 km²), Oregon (1,395 km²), and Northern California (323 km²). Red abalone had less suitable area overall because of its narrower requirements (8–18°C, 0–24 m). Unlike oysters, Washington ranked highest for red abalone, followed by Central California, Oregon, Southern California, and Northern California. This shift makes sense because red abalone needs cooler water, which favors the northern EEZs, while warmer southern waters more often exceed its 18°C limit. Northern California ranked last for both species, likely because its narrow continental shelf leaves little shallow water near the coast. Turning the workflow into a function made it easy to compare species and confirm the results, since the function reproduced the original oyster map exactly.
+
+These results are a starting point, not a final site recommendation. The model only considers mean annual SST and depth. It doesn't account for seasonal temperature extremes or marine heatwaves, nutrient availability, substrate type, or competing ocean uses like shipping lanes and marine protected areas, which Gentry et al. (2017) include as constraints in their global analysis. SST is also a surface measurement, while red abalone live on the seafloor, so bottom temperatures may differ. Finally, the roughly 4.6 km raster resolution is coarse compared to the narrow shallow coastal zone, which may over- or underestimate suitable area along the shoreline. Adding these factors and higher-resolution data would make the rankings more useful for real aquaculture planning.
+
+
+
+## References
+
+#### Literature
+
+- Gentry, R. R., Froehlich, H. E., Grimm, D., Kareiva, P., Parke, M., Rust, M., Gaines, S. D., & Halpern, B. S. (2017). Mapping the global potential for marine aquaculture. *Nature Ecology & Evolution*, 1, 1317–1324. https://doi.org/10.1038/s41559-017-0257-9
+- Hall, S. J., Delaporte, A., Phillips, M. J., Beveridge, M., & O'Keefe, M. (2011). *Blue Frontiers: Managing the Environmental Costs of Aquaculture*. The WorldFish Center, Penang, Malaysia.
+
+
+#### Data
+
+| Data | Citation | Link | Accessed |
+|---|---|---|---|
+| Sea surface temperature | NOAA Coral Reef Watch. 5km Daily Global Satellite Sea Surface Temperature Anomaly, Version 3.1. | https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php | 11/02/2026 |
+| Bathymetry | GEBCO Compilation Group (2022). GEBCO_2022 Grid. doi:10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c | https://www.gebco.net/data_and_products/gridded_bathymetry_data/ | 11/02/2026 |
+| Exclusive Economic Zones | Flanders Marine Institute. Maritime Boundaries Geodatabase: Exclusive Economic Zones. Marineregions.org. | https://www.marineregions.org/eez.php | 11/02/2026 |
+| Red abalone habitat ranges | Palomares, M. L. D., & Pauly, D. (Eds.). SeaLifeBase. *Haliotis rufescens* species summary. | https://www.sealifebase.ca/summary/Haliotis-rufescens.html | 11/02/2026 |
