@@ -19,7 +19,7 @@ Marine aquaculture has the potential to be an important source of protein, with 
 
 ## Prepare Data
 
-I need to load the necessary packages and data to get started. The data I'm working with consists of NOAA’s 5km Daily Global Satellite Sea Surface Temperature Anomaly v3.1 (SST), SeaLifeBase information on oysters and red abalone, the General Bathymetric Chart of the Oceans (GEBCO), and designating maritime boundaries using Exclusive Economic Zones (EEZ) off of the west coast of US from Marineregions.org. Here, I also filtered the SST raster to be between 2008 and 2012. 
+I need to load the necessary packages and data to get started. The data I'm working with consists of NOAA’s 5km Daily Global Satellite Sea Surface Temperature Anomaly v3.1 (SST), SeaLifeBase information on oysters and red abalone, the General Bathymetric Chart of the Oceans (GEBCO), and designating maritime boundaries using Exclusive Economic Zones (EEZ) off of the west coast of US from Marineregions.org. Here, I also loaded and stacked the SST rasters that were between 2008 and 2012. 
 
 ```{r}
 # LOADING PACKAGES
@@ -27,9 +27,6 @@ library(tidyverse)
 library(sf)
 library(here)
 library(tmap)
-library(tinytex)
-library(tidyterra)
-library(maptiles)
 library(terra)
 ```
 
@@ -79,10 +76,9 @@ if (same.crs(depth, sst) & same.crs(sst, st_crs(eez)$wkt)) {
 } else {
   stop("CRS mismatch remains between datasets.")
 }
-# All the datasets share the same CRS
 ```
 
-All of the datasets share the same CRS, so there was no need to transform any of them. I placed warnings in the code that would run if the CRS' didn't match. 
+All of the datasets share the same CRS, so there was no need to transform any of them. I placed warnings in the code that would run if the CRSs didn't match. 
 
 
 ## 1. Process Data
@@ -117,7 +113,7 @@ global(sst_mean_c, fun = c("min", "max", "mean"), na.rm = TRUE)
 
 Using the `global` function, the minimum comes out to be around 5ºC, the maximum is still almost 33ºC, and the mean is a little more than 14ºC. 
 
-After converting to Celsius and looking at the sumamry statistics, I crop the depth raster to match the extent of the SST raster. 
+After converting to Celsius and looking at the summary statistics, I crop the depth raster to match the extent of the SST raster. 
 
 ```{r}
 # 1c. Crop depth to the SST extent
@@ -178,7 +174,7 @@ rcl_depth <- matrix(c(-Inf, -70, NA,   # deeper than 70 m → not suitable
 depth_suit <- classify(depth_resamp, rcl_depth, include.lowest = TRUE)
 ```
 
-This area includes the depth ranges that are suitable for oysters. It shows up on a map as a thin line because the depth range only exists closer to shore. 
+This area includes the depth ranges that are suitable for oysters. Most of the ocean in this extent falls within the oysters’ 11–30°C range, while the 0–70 m depth range only covers a thin strip near the coast. 
 
 The next step is to combine the two rasters so that both the correct SST and depth are in one place. 
 
@@ -271,7 +267,7 @@ tm_shape(eez_suitable) +
               position = c("left", "bottom"))
 ```
 
-The map above represents the suitable area in km for oyster aquaculture grouped by West Coast EEZs. The darker the color, the more suitable area. Vice versa for the lighter blue. Each EEZ is labelled with its respective region. You can clearly see which regions have more or less suitable area for aquaculture. 
+The map above represents the suitable area in km² for oyster aquaculture grouped by West Coast EEZs. The darker the color, the more suitable area. Vice versa for the lighter blue. Each EEZ is labelled with its respective region. You can clearly see which regions have more or less suitable area for aquaculture. 
 
 
 ## Turn it into a Function
@@ -349,6 +345,9 @@ suitability_map <- function(min_sst, max_sst, min_depth, max_depth, species_name
 To check if the function works, I will try it with the oysters information. Then, I can check it with my work from earlier. 
 
 ```{r}
+#| fig-width: 7
+#| fig-height: 9
+
 # Oysters: 11–30°C, 0–70 m
 suitability_map(min_sst = 11, max_sst = 30,
                 min_depth = 0, max_depth = 70,
@@ -358,6 +357,9 @@ suitability_map(min_sst = 11, max_sst = 30,
 The oyster map is the same as the one I made from before, so the function works as intended. Now, I can use it on the aquaculture species of my choosing, red abalone. 
 
 ```{r}
+#| fig-width: 7
+#| fig-height: 9
+
 # Red abalone: 8–18°C, 0–24 m (SeaLifeBase)
 suitability_map(min_sst = 8, max_sst = 18,
                 min_depth = 0, max_depth = 24,
@@ -388,6 +390,6 @@ These results are a starting point, not a final site recommendation. The model o
 | Data | Citation | Link | Accessed |
 |---|---|---|---|
 | Sea surface temperature | NOAA Coral Reef Watch. 5km Daily Global Satellite Sea Surface Temperature Anomaly, Version 3.1. | https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php | 11/02/2026 |
-| Bathymetry | GEBCO Compilation Group (2022). GEBCO_2022 Grid. doi:10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c | https://www.gebco.net/data_and_products/gridded_bathymetry_data/ | 11/02/2026 |
+| Bathymetry | GEBCO Compilation Group (2022). GEBCO_2022 Grid. GEBCO | https://www.gebco.net/data_and_products/gridded_bathymetry_data/ | 11/02/2026 |
 | Exclusive Economic Zones | Flanders Marine Institute. Maritime Boundaries Geodatabase: Exclusive Economic Zones. Marineregions.org. | https://www.marineregions.org/eez.php | 11/02/2026 |
 | Red abalone habitat ranges | Palomares, M. L. D., & Pauly, D. (Eds.). SeaLifeBase. *Haliotis rufescens* species summary. | https://www.sealifebase.ca/summary/Haliotis-rufescens.html | 11/02/2026 |
